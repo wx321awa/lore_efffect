@@ -19,7 +19,8 @@ const DEFAULTS = {
     scan_interval_ms: 1000,
     /**
      * 普通效果的时长（游戏刻，20 刻 = 1 秒）。400 = 20 秒。
-     * 视觉类效果（夜视/反胃等）**不走这个值**，固定按 visual_ticks 给 15 秒。
+     * 视觉类效果（夜视/反胃等）**不走这个值**：默认 visual_mode='infinite' 直接挂
+     * 无限时长；只有引擎不吃无限、回落成 refresh 模式后才按 visual_ticks 续期。
      *
      * 为什么不用 -1（永久）：插件被卸载/崩了以后永久效果会一直挂在玩家身上，
      * 没人能撤。用有限时长 + 到点前续期，最坏情况就是多挂一会儿自己掉。
@@ -96,6 +97,99 @@ const DEFAULTS = {
     debug: false,
 };
 
+// 槽位只认这三个名字（写错名字会被忽略，不会让整个槽位机制失效）
+const KNOWN_SLOTS = ['mainhand', 'offhand', 'armor'];
+
+/**
+ * 把服主手写的配置掰成代码期望的类型。
+ *
+ * 为什么需要：代码里到处是 Number()/Array.isArray() 判定，类型写歪时**不会报错，
+ * 只会静默改变行为**——比如 visual_effects 写成 ["9","16"] 会全部失配（视觉类被当
+ * 普通效果挂 20 秒，夜视又开始闪）、slots 写成字符串会让三个槽位全开。宁可纠正后
+ * 打一条日志，也不要让人对着「配置明明改了却没效果」猜。
+ */
+function normalize(conf) {
+    const fixed = [];
+    const int = (k, dflt, min) => {
+        const n = Number(conf[k]);
+        if (conf[k] == null || !isFinite(n)) { conf[k] = dflt; fixed.push(k); return; }
+        const v = Math.floor(n);
+        if (min != null && v < min) { conf[k] = min; fixed.push(k); return; }
+        conf[k] = v;
+    };
+    const bool = (k) => {
+        if (typeof conf[k] === 'boolean') return;
+        const raw = String(conf[k]).trim().toLowerCase();
+        conf[k] = !(raw === 'false' || raw === '0' || raw === 'off' || raw === 'no' || raw === '');
+        fixed.push(k);
+    };
+
+    bool('enabled');
+    bool('show_particles');
+    bool('skip_instant');
+    bool('require_level');
+    bool('trust_effect_list');
+    bool('log_changes');
+    bool('debug');
+
+    int('scan_interval_ms', DEFAULTS.scan_interval_ms, 0);
+    int('grant_ticks', DEFAULTS.grant_ticks);          // 允许 -1（永久）
+    int('refresh_ahead_ms', DEFAULTS.refresh_ahead_ms, 0);
+    int('visual_ticks', DEFAULTS.visual_ticks);
+    int('visual_min_ticks', DEFAULTS.visual_min_ticks, 0);
+    int('max_level', DEFAULTS.max_level, 1);
+    int('amplifier_offset', 0);                        // 允许负数
+
+    // 槽位：字符串 "mainhand,offhand" 也能救回来
+    let slots = conf.slots;
+    if (typeof slots === 'string') slots = slots.split(/[,s|]+/);
+    if (!Array.isArray(slots)) slots = DEFAULTS.slots.slice();
+    const slotOut = [];
+    for (let i = 0; i < slots.length; i++) {
+        const v = String(slots[i]).trim().toLowerCase();
+        if (v.length === 0) continue;
+        if (KNOWN_SLOTS.indexOf(v) < 0) { fixed.push('slots'); continue; }
+        if (slotOut.indexOf(v) < 0) slotOut.push(v);
+    }
+    conf.slots = slotOut;
+
+    // 视觉效果 id 列表：["9","16"] → [9,16]
+    const vis = [];
+    if (Array.isArray(conf.visual_effects)) {
+        for (let i = 0; i < conf.visual_effects.length; i++) {
+            const id = Number(conf.visual_effects[i]);
+            if (isFinite(id) && id > 0 && vis.indexOf(id) < 0) vis.push(id);
+        }
+    } else {
+        fixed.push('visual_effects');
+        for (let i = 0; i < DEFAULTS.visual_effects.length; i++) vis.push(DEFAULTS.visual_effects[i]);
+    }
+    conf.visual_effects = vis;
+
+    // 黑名单词：必须是字符串数组
+    if (!Array.isArray(conf.blacklist_line_words)) {
+        conf.blacklist_line_words = DEFAULTS.blacklist_line_words.slice();
+        fixed.push('blacklist_line_words');
+    } else {
+        const words = [];
+        for (let i = 0; i < conf.blacklist_line_words.length; i++) {
+            const w = String(conf.blacklist_line_words[i]);
+            if (w.length > 0) words.push(w);
+        }
+        conf.blacklist_line_words = words;
+    }
+
+    conf.stack = String(conf.stack).trim().toLowerCase() === 'sum' ? 'sum' : 'max';
+    conf.visual_mode = String(conf.visual_mode).trim().toLowerCase() === 'refresh' ? 'refresh' : 'infinite';
+    conf.require_marker = String(conf.require_marker == null ? '' : conf.require_marker);
+
+    if (fixed.length > 0) {
+        try {
+            log('[lore_effect] 配置类型已纠正: ' + fixed.join(', ') + '（改回你要的值后重载即可）');
+        } catch (e) { }
+    }
+}
+
 const Config = {
     current: null,
     DIR: DIR,
@@ -143,6 +237,7 @@ Config.load = function () {
             if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] != null) conf[k] = obj[k];
         }
     }
+    normalize(conf);
     Config.current = conf;
 
     // 首次生成 / 坏文件 / 缺键 → 把完整配置写回，让服主在文件里看得到所有开关

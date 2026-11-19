@@ -9,7 +9,7 @@
  */
 const MANIFEST = 'plugins/lore_effect/manifest.json';
 const BRAND = 'XiYing定制版';
-const FALLBACK = '1.2.0';
+const FALLBACK = '1.3.0';
 
 const Version = {
     BRAND: BRAND,
@@ -31,7 +31,22 @@ const Version = {
         return fb;
     },
 
-    /** 「XiYing定制版 v1.2.0」 */
+    /**
+     * 版本号 → [major, minor, patch]，给 ll.registerPlugin 用。
+     * 解析不出来就回退 [1, 3, 0]，不能返回 undefined（registerPlugin 会抛）。
+     */
+    tuple: function (fallback) {
+        const s = Version.current(fallback);
+        const parts = String(s).split('.');
+        const out = [];
+        for (let i = 0; i < 3; i++) {
+            const n = parseInt(parts[i], 10);
+            out.push(isFinite(n) && n >= 0 ? n : 0);
+        }
+        return out;
+    },
+
+    /** 「XiYing定制版 v1.3.0」 */
     display: function (fallback) {
         return BRAND + ' v' + Version.current(fallback);
     },
