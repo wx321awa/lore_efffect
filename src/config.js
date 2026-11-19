@@ -142,7 +142,7 @@ function normalize(conf) {
 
     // 槽位：字符串 "mainhand,offhand" 也能救回来
     let slots = conf.slots;
-    if (typeof slots === 'string') slots = slots.split(/[,s|]+/);
+    if (typeof slots === 'string') { slots = slots.split(/[,\s|]+/); fixed.push('slots'); }
     if (!Array.isArray(slots)) slots = DEFAULTS.slots.slice();
     const slotOut = [];
     for (let i = 0; i < slots.length; i++) {
@@ -157,7 +157,9 @@ function normalize(conf) {
     const vis = [];
     if (Array.isArray(conf.visual_effects)) {
         for (let i = 0; i < conf.visual_effects.length; i++) {
-            const id = Number(conf.visual_effects[i]);
+            const raw = conf.visual_effects[i];
+            const id = Number(raw);
+            if (typeof raw !== 'number') fixed.push('visual_effects');
             if (isFinite(id) && id > 0 && vis.indexOf(id) < 0) vis.push(id);
         }
     } else {
@@ -184,8 +186,10 @@ function normalize(conf) {
     conf.require_marker = String(conf.require_marker == null ? '' : conf.require_marker);
 
     if (fixed.length > 0) {
+        const uniq = [];
+        for (let i = 0; i < fixed.length; i++) if (uniq.indexOf(fixed[i]) < 0) uniq.push(fixed[i]);
         try {
-            log('[lore_effect] 配置类型已纠正: ' + fixed.join(', ') + '（改回你要的值后重载即可）');
+            log('[lore_effect] 配置类型已纠正: ' + uniq.join(', ') + '（改回你要的值后重载即可）');
         } catch (e) { }
     }
 }

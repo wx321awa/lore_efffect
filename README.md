@@ -149,7 +149,7 @@ LSE 文档只写了 `addEffect(id, tick, level)`，没说 `level` 是 0 起还�
 node test/offline-test.js
 ```
 
-88 项断言：解析器的各种写法（含「时长单位不当等级」）、授予/撤销、不抢药水、max/sum 叠加、瞬间效果跳过、
+91 项断言：解析器的各种写法（含「时长单位不当等级」）、授予/撤销、不抢药水、max/sum 叠加、瞬间效果跳过、
 黑名单、等级变化重挂、`amplifier_offset` 校准、`require_marker`、牛奶后自动补挂、
 副手/盔甲生效、槽位配置，以及**视觉类时长下限**（含「就算 grant_ticks=100 也 > 15 秒」）
 、`getAllEffects` 抛错时不许先删再挂、sum 模式的槽位标注，以及品牌/版本号。
@@ -191,7 +191,7 @@ lore_effect/
 - `ll.registerPlugin` 的版本号改成从 `manifest.json` 读（`Version.tuple()`），不再写死 `[1,2,0]`；
   顺手删掉非标准的 `License` 字段（协议以 `LICENSE` 文件和 manifest `extraInfo` 为准）。
 - 补 **Apache-2.0 LICENSE**（manifest 一直声明 Apache-2.0，仓库里之前没有这个文件）。
-- 自测从 75 项扩到 88 项，新增：时长单位不当等级、`getAllEffects` 抛错不重挂、sum 槽位标注、
+- 自测从 75 项扩到 91 项，新增：时长单位不当等级、`getAllEffects` 抛错不重挂、sum 槽位标注、配置类型纠正、
   `Version.tuple()`。
 
 > 1.1.x / 1.2.0 的改动当时没有记录（更新日志停在 1.0.3），本版把版本号一次对齐到 1.3.0。

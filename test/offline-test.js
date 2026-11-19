@@ -9,7 +9,7 @@
  *      这样同一份代码在 Node 里也能 require；
  *   2. 用桩替换 File / mc / log / ll，然后把解析器和授予逻辑全跑一遍断言。
  *
- * 改动 parse.js / runtime.js 之后先跑这个，再上服。目前 88 项断言。
+ * 改动 parse.js / runtime.js 之后先跑这个，再上服。目前 91 项断言。
  */
 const path = require("path");
 
@@ -524,6 +524,21 @@ console.log("[3d] stack=sum 的 /lorefx status 槽位标注");
     rt.clearCaches();
     const w2 = rt.wantFor(t.player, Config.current);
     check(w2.want.get(5).where, ["副手"], "max 模式仍只标贡献最高等级的那件");
+}
+
+// ============================================================ 3e. 配置类型纠正
+console.log("[3e] 配置类型自动纠正");
+{
+    FAKE_FS.set("config/lore_effect/config.json", JSON.stringify({
+        visual_effects: ["9", "16"], slots: "mainhand,offhand", enabled: "false",
+        max_level: "8", stack: "SUM", grant_ticks: "600.7",
+    }));
+    const c = Config.load();
+    check(c.slots, ["mainhand", "offhand"], "slots 写成字符串 → 拆成数组");
+    check(c.visual_effects, [9, 16], "visual_effects 字符串 id → 数字");
+    check([c.enabled, c.max_level, c.stack, c.grant_ticks], [false, 8, "sum", 600], "布尔 / 整数 / 枚举类型纠正");
+    FAKE_FS.delete("config/lore_effect/config.json");
+    resetCfg();
 }
 
 // ============================================================ 汇总
