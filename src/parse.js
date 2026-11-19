@@ -15,11 +15,15 @@
  * 不认的情况（故意的）：
  *   - 关键词后面紧跟百分号：`攻击速度+10%` 是在写属性，不是给药水效果，
  *     这种行会被跳过，否则全服装备的「攻击速度」条目都会变成速度药水。
+ *   - 紧跟时长/次数单位（秒/分钟/小时/次/天/倍）：`夜视 15秒` 是在写描述，
+ *     同样跳过 —— 否则 15 会被当等级再压到上限，等于白送满级夜视。
  *   - 没有关键词的行、没有数字也没有罗马数字的行（等级默认 I）。
  */
 const { Effects } = require("plugins/lore_effect/src/effects");
 
 const ROMAN_VALUE = { i: 1, v: 5, x: 10, l: 50, c: 100, d: 500, m: 1000 };
+/** 等级数字后面紧跟这些字，说明是在写「时长 / 次数 / 属性值」，不是等级 */
+const UNIT_AFTER = '%‰秒次分天倍';
 const ASCII_KW = /^[\x20-\x7e]+$/;
 
 /** 去掉 § 颜色码 */
@@ -77,8 +81,16 @@ function levelAt(s, pos, maxLevel) {
     if (m == null) return { level: 1, next: pos, hasToken: false };
     const token = m[1];
     const end = pos + m[0].length;
-    // 紧跟百分号 → 属性数值行，当成「不是效果」跳过
-    if (s.charAt(end) === '%') return { skip: true, next: end + 1 };
+    // 紧跟单位 → 描述行，当成「不是效果」跳过。
+    //   %/‰        属性数值：攻击速度+10%
+    //   秒/分/天…  时长描述：夜视 15秒、速度 20秒、跳跃提升 3秒
+    // 不挡的话 15/20 会被当成等级、再被静默压到 max_level，玩家直接拿满级效果。
+    const next2 = s.substr(end, 2);
+    if (next2 === '小时' || next2 === '分钟') return { skip: true, next: end + 2 };
+    // 注意：行尾时 charAt(end) 是空串，而 ''.indexOf('') === 0，会误判成「有单位」把
+    // 所有正常行都跳掉 —— 必须先确认真的还有字。
+    const unit = s.charAt(end);
+    if (unit.length > 0 && UNIT_AFTER.indexOf(unit) >= 0) return { skip: true, next: end + 1 };
     let lv = /^\d+$/.test(token) ? parseInt(token, 10) : romanToInt(token);
     if (!isFinite(lv) || lv <= 0) lv = 1;
     const cap = (isFinite(Number(maxLevel)) && Number(maxLevel) > 0) ? Math.floor(Number(maxLevel)) : 10;

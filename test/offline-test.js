@@ -9,7 +9,7 @@
  *      这样同一份代码在 Node 里也能 require；
  *   2. 用桩替换 File / mc / log / ll，然后把解析器和授予逻辑全跑一遍断言。
  *
- * 改动 parse.js / runtime.js 之后先跑这个，再上服。目前 55 项断言。
+ * 改动 parse.js / runtime.js 之后先跑这个，再上服。目前 88 项断言。
  */
 const path = require("path");
 
@@ -88,6 +88,12 @@ check(H("攻击速度+10%"), [], "属性百分比行不认（挡掉「攻击速�
 check(H("speedy"), [], "英文词边界");
 check(H("这把剑很快"), [], "没有关键词");
 check(H("速度II 力量II"), ["1:2", "5:2"], "两个效果同等级");
+check(H("夜视 15秒"), [], "时长描述「15秒」不当等级（1.3.0）");
+check(H("速度 20秒"), [], "「20秒」不当等级");
+check(H("跳跃提升 3秒"), [], "「3秒」不当等级");
+check(H("速度 20分钟"), [], "「分钟」不当等级");
+check(H("抗性提升IV 速度 20秒"), ["11:4"], "一行里描述行被挡掉、真效果仍生效");
+check(H("速度 3级"), ["1:3"], "「级」是等级后缀，不受影响");
 
 // ============================================================ 2. 运行时
 console.log("[2] 运行时（授予 / 撤销 / 不抢药水）");
@@ -450,7 +456,74 @@ console.log("[4] 品牌与版本");
     FAKE_FS.set("plugins/lore_effect/manifest.json", JSON.stringify({ version: "2.3.4" }));
     check(Version.display(), "XiYing定制版 v2.3.4", "版本号跟着 manifest 走");
     FAKE_FS.delete("plugins/lore_effect/manifest.json");
-    check(Version.display(), "XiYing定制版 v1.2.0", "manifest 缺失时回退到 1.2.0");
+    check(Version.display(), "XiYing定制版 v1.3.0", "manifest 缺失时回退到 1.3.0");
+    check(Version.tuple(), [1, 3, 0], "tuple() 给 registerPlugin 用");
+    FAKE_FS.set("plugins/lore_effect/manifest.json", JSON.stringify({ version: "2.3.4" }));
+    check(Version.tuple(), [2, 3, 4], "tuple() 跟着 manifest 走");
+}
+
+// ============================================================ 3c. 读不到效果列表
+console.log("[3c] getAllEffects 不可用时不能疯狂重挂");
+{
+    resetCfg();
+    let adds = 0;
+    let rms = 0;
+    const p = {
+        uuid: "uuid-unreadable",
+        realName: "Steve",
+        isPlayer: () => true,
+        getHand: () => mkItem(["速度II"]),
+        getOffHand: () => null,
+        getArmor: () => ({ getAllItems: () => [] }),
+        getAllEffects: () => { throw new Error("boom"); },
+        addEffect: () => { adds++; return true; },
+        removeEffect: () => { rms++; return true; },
+    };
+    rt.clearCaches();
+    rt.applyTo(p);
+    const st = rt.state.get("uuid-unreadable");
+    st.granted.get(1).at = Date.now() - 3000;   // 超过 2 秒「丢失」宽限
+    rt.applyTo(p);
+    rt.applyTo(p);
+    check([adds, rms], [1, 0], "读不到列表时不许「先删再挂」（1.3.0）");
+}
+{
+    resetCfg();
+    const p = {
+        uuid: "uuid-visual-unreadable",
+        realName: "Steve",
+        isPlayer: () => true,
+        getHand: () => mkItem(["夜视II"]),
+        getOffHand: () => null,
+        getArmor: () => ({ getAllItems: () => [] }),
+        getAllEffects: () => { throw new Error("boom"); },
+        addEffect: () => true,
+        removeEffect: () => true,
+    };
+    rt.clearCaches();
+    rt.applyTo(p);
+    const st = rt.state.get("uuid-visual-unreadable");
+    for (let round = 0; round < 3; round++) {
+        st.granted.get(16).at = Date.now() - 3000;
+        rt.applyTo(p);
+    }
+    check(rt.infiniteUnsupported, false, "读不到列表时不能误判「引擎不支持无限」");
+}
+
+// ============================================================ 3d. stack=sum 的槽位标注
+console.log("[3d] stack=sum 的 /lorefx status 槽位标注");
+{
+    resetCfg();
+    Config.current.stack = "sum";
+    rt.clearCaches();
+    const t = mkPlayer({ hand: mkItem(["力量2"]), offhand: mkItem(["力量3"]) });
+    const w = rt.wantFor(t.player, Config.current);
+    check(w.want.get(5).level, 5, "sum：2+3 级 = 5 级");
+    check(w.want.get(5).where, ["主手", "副手"], "sum：两件都要标出来（1.3.0 之前只标第一件）");
+    Config.current.stack = "max";
+    rt.clearCaches();
+    const w2 = rt.wantFor(t.player, Config.current);
+    check(w2.want.get(5).where, ["副手"], "max 模式仍只标贡献最高等级的那件");
 }
 
 // ============================================================ 汇总

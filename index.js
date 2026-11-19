@@ -21,9 +21,10 @@ const { Version } = require("plugins/lore_effect/src/version");
 
 // Yoyo 规范的头注册：包一层 try/catch，注册失败最多丢一条元信息，不影响本体
 try {
-ll.registerPlugin('lore_effect', '按装备Lore给药水效果（' + Version.BRAND + '）', [1, 2, 0], {
-    author: 'xxhh.',
-        License: 'Apache-2.0',
+    // 版本号从 manifest.json 读（Version.tuple()），别再写死 —— 1.2.0 那次就是
+    // 代码里死在 [1,2,0]，改了 manifest 插件信息还显示旧号。
+    ll.registerPlugin('lore_effect', '按装备Lore给药水效果（' + Version.BRAND + '）', Version.tuple(), {
+        author: 'xxhh.',
     });
 } catch (e) {
     log('[lore_effect] ll.registerPlugin 跳过: ' + e);
@@ -53,10 +54,14 @@ try {
     const cmd = mc.newCommand('lorefx', 'Lore药水效果 ' + Version.BRAND + ' —— 状态 / 诊断 / 关键词 / 校准 / 重载', PermType.Any);
     cmd.setEnum('e_fx', ['status', 'diag', 'list', 'test', 'reload']);
     // 注意：多个枚举参数重名时必须靠枚举名在 overload 里区分（LSE 文档明确写了这点）
-    cmd.mandatory('pfx', ParamType.Enum, 'e_fx');
+    // pfx 必须 optional：mandatory 的枚举 + 没有空重载，裸 /lorefx 会被 BDS 判成
+    // 用法错误，回调里 res.pfx == null 的默认 status 分支永远走不到。
+    // 空重载单独 try：个别 LSE 版本对 0 参数 overload 抛错，不能把后面两个一起带走。
+    cmd.optional('pfx', ParamType.Enum, 'e_fx');
     cmd.optional('arg', ParamType.String);
-    cmd.overload(['e_fx']);
-    cmd.overload(['e_fx', 'arg']);
+    try { cmd.overload([]); } catch (e0) { log('[lore_effect] 空重载注册失败: ' + e0); }
+    try { cmd.overload(['e_fx']); } catch (e1) { log('[lore_effect] 单参重载注册失败: ' + e1); }
+    try { cmd.overload(['e_fx', 'arg']); } catch (e2) { log('[lore_effect] 双参重载注册失败: ' + e2); }
     cmd.setCallback((_cmd, origin, output, res) => {
         const action = String(res.pfx == null ? 'status' : res.pfx);
         const player = origin.player;

@@ -257,7 +257,14 @@ class Runtime {
             if (level > cap) level = cap;
             if (level < 1) level = 1;
             const where = [];
-            for (let i = 0; i < arr.length; i++) if (where.indexOf(arr[i].where) < 0 && arr[i].level >= level) where.push(arr[i].where);
+            // sum 模式下 level 是总和，比任何单件都大：用 >= level 过滤会永远为空
+            // （之前 /lorefx status 的槽位标注会退回成只标第一件）。sum 就把所有来源都记上。
+            const sumMode = String(cfg.stack) === 'sum';
+            for (let i = 0; i < arr.length; i++) {
+                if (where.indexOf(arr[i].where) >= 0) continue;
+                if (!sumMode && arr[i].level < level) continue;
+                where.push(arr[i].where);
+            }
             want.set(id, { level: level, where: where.length > 0 ? where : [arr[0].where] });
         }
         return { want: want, detail: detail };
@@ -387,10 +394,15 @@ class Runtime {
             const dueMs = holdMs > 0 ? Math.max(500, holdMs - ahead) : -1;
             const g = st.granted.get(id);
             const listed = readable && present.has(Number(id));
+            // 只有「信列表」且「真的读到了列表」时才用它判断在不在。
+            // 读不到（getAllEffects 抛错）时必须当它一直在：否则每轮都判定成
+            // 「被清掉了」→ 先删再挂，实测 6 秒内就把视觉类误判成「引擎不支持
+            // 无限时长」，夜视回落成 15 秒续期又开始闪。
+            const trusted = trustList && readable;
             // 「现在还在不在」：不信列表时就当它一直在（不做补挂）
-            const has = trustList ? listed : true;
+            const has = trusted ? listed : true;
             // 「首次授予前要不要让位给药水」：不信列表时就当它不在（该挂就挂）
-            const occupied = trustList ? listed : false;
+            const occupied = trusted ? listed : false;
 
             if (g == null) {
                 // 玩家自己带着这个效果（药水/命令）→ 不抢，等它自然掉，之后下一轮再挂
