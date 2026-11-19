@@ -1,0 +1,18 @@
+{
+    "entry": "index.js",
+    "name": "lore_effect",
+    "type": "lse-quickjs",
+    "version": "1.2.0",
+    "author": "xxhh.",
+    "description": "按装备 Lore 给予药水效果（XiYing定制版；主手/副手/盔甲栏，脱下即撤销）",
+    "extraInfo": {
+        "License": "Apache-2.0",
+        "Maintainer": "xxhh.",
+        "Edition": "XiYing定制版"
+    },
+    "dependencies": [
+        {
+            "name": "legacy-script-engine-quickjs"
+        }
+    ]
+}
