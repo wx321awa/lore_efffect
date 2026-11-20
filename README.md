@@ -4,7 +4,7 @@
 
 作者：xxhh.
 
-这是一个按装备 Lore 给予药水效果的 LiteLoaderBDS（LSE QuickJS）插件。
+这是一个按装备 Lore 给予药水效果的 LeviLamina（LSE QuickJS）插件。
 
 - **生效位置**：主手 / 副手 / 盔甲栏（背包、箱子里的不算）
 - **脱下立刻撤销**，切快捷栏最多 1 秒延迟（背包切换不触发事件，只能轮询兜底）
